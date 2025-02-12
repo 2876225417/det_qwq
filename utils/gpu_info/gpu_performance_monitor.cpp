@@ -22,14 +22,22 @@
 #include <qvalueaxis.h>
 #include <qwidget.h>
 
+
+
 gpu_performance_monitor::gpu_performance_monitor(QWidget* parent)
     : QWidget(parent)
     { 
     QVBoxLayout* monitor_wrapper = new QVBoxLayout(this);
 
+    m_train_log_websocket = new get_train_log_websocket(this);
+    connect(m_train_log_websocket, &get_train_log_websocket::new_data_received, this, [this]() {
+        qDebug() << "get_new_";
+    });
+
+    m_train_log_websocket->connect_to_server(QUrl("ws://localhost:8765"));
+
     QTabWidget* monitor_tabs = new QTabWidget();
     QWidget* gpu_monitor_tab = new QWidget();
-    QWidget* training_log_tab = new QWidget();
 
     QVBoxLayout* gpu_monitor_wrapper = new QVBoxLayout();
 
@@ -103,6 +111,12 @@ gpu_performance_monitor::gpu_performance_monitor(QWidget* parent)
     gpu_monitor_wrapper->addWidget(m_usage_view);
     gpu_monitor_wrapper->addWidget(m_thermal_view);
     gpu_monitor_tab->setLayout(gpu_monitor_wrapper);
+
+    QWidget* training_log_tab = new QWidget();
+
+    m_training_log_chart = new QChart();
+
+
     monitor_tabs->addTab(gpu_monitor_tab, "gpu");
     monitor_tabs->addTab(training_log_tab, "training");
 
@@ -247,6 +261,10 @@ void gpu_performance_monitor::init_monitors() {
             m_power_monitor->set_line_width(3);
         } else m_power_monitor->set_line_width(1);
     });
+}
+
+void init_training_monitors() {
+    
 }
 
 void gpu_performance_monitor::data_collection_thread() {

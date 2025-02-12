@@ -73,8 +73,6 @@ private:
     yoloTrainer* trainer;
     QThread* trainerThread;
 
-    QTimer* csv_reslover;
-    
 
 };
 

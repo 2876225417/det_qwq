@@ -13,6 +13,10 @@
 #include <atomic>
 
 
+struct training_log_data {
+    int epoch;  
+};
+
 class yoloTrainer: public QObject{
     Q_OBJECT
 public:

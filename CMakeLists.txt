@@ -42,6 +42,7 @@ find_package(Qt6 REQUIRED COMPONENTS
     OpenGL
     OpenGLWidgets
     SerialPort
+    WebSockets
 )
 
 find_package(OpenCV REQUIRED)
@@ -180,6 +181,7 @@ target_link_libraries(det_qwq
     OpenGL::GL
     Qt6::Gui
     Qt6::SerialPort
+    Qt6::WebSockets
     ${OpenCV_LIBS}
     nvidia-ml
     cudart

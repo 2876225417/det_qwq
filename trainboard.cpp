@@ -2,7 +2,10 @@
 #include "utils/gpu_info/gpu_performance_monitor.h"
 #include "yolotrainer.h"
 #include <qboxlayout.h>
+#include <qevent.h>
+#include <qfilesystemwatcher.h>
 #include <qgroupbox.h>
+#include <qiodevicebase.h>
 #include <qlabel.h>
 #include <qtextoption.h>
 #include <qtimer.h>
@@ -57,7 +60,6 @@ TrainBoard::TrainBoard(QWidget* parent)
     training_log_wrapper->addWidget(performance_monitor_console, 7);
     training_log_wrapper->addWidget(training_console, 3);
     training_log_box->setLayout(training_log_wrapper);
-
 
     
     // 训练配置
@@ -131,16 +133,6 @@ void TrainBoard::startTraining(){
     startButton->setEnabled(false);
     stopButton->setEnabled(true);
     qDebug() << "Runned training!";
-    std::filesystem::path res_csv;
-
-    QTimer* delay_get = new QTimer(this);
-    delay_get->setSingleShot(true);
-    connect(delay_get, &QTimer::timeout, this, [&]() {
-        qDebug() << "Latest: " << get_latest_result_dir();
-        res_csv = get_latest_result_dir() / "results.csv";
-    });
-    delay_get->start(12000);
-    
 
     QMetaObject::invokeMethod(
         trainer
@@ -156,7 +148,6 @@ void TrainBoard::stopTraining(){
     qDebug() << "stopping button clicked";
 }
 
-
 void TrainBoard::appendLog(const QString& message){
     logDisplay->appendPlainText(message);
 }
@@ -169,28 +160,4 @@ void TrainBoard::onTrainingFinished(int exitCode){
     } else {
         appendLog("\nTraining failed with exti code: " + QString::number(exitCode));
     }
-}
-
-std::filesystem::path TrainBoard::get_latest_result_dir() {
-    const auto base_dir = trainer->workDir / "runs" / "train";
-    std::filesystem::path latest_dir;
-    std::time_t latest_time = 0;
-
-    try {
-        for (const auto& entry: std::filesystem::directory_iterator(base_dir)) {
-            if (entry.is_directory() &&
-                entry.path().filename().string().find("exp") != std::string::npos) {
-                
-                auto write_time = std::chrono::system_clock::to_time_t(std::chrono::file_clock::to_sys((entry.last_write_time())));
-
-                if (write_time > latest_time) {
-                    latest_time = write_time;
-                    latest_dir = entry.path();
-                }
-            }
-        }
-    } catch(const std::filesystem::filesystem_error& e) {
-
-    }
-    return latest_dir;
 }

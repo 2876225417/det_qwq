@@ -10,10 +10,18 @@
 #include <QTimer>
 
 #include <QFutureWatcher>
+#include <QtCharts/qvalueaxis.h>
 #include <QtConcurrent/QtConcurrent>
 
+#include <QtWebSockets/qwebsocket.h>
 #include <deque>
+#include <functional>
+#include <memory>
 #include <nvml.h>
+#include <qjsondocument.h>
+#include <qjsonobject.h>
+#include <qobject.h>
+#include <qtmetamacros.h>
 
 
 
@@ -87,19 +95,63 @@ private:
     int m_max_points;
 };
 
+#include <QObject>
+#include <QtWebSockets/QWebSocket>
+// @todo: 共享内存实现
+class get_train_log_websocket: public QObject {
+    Q_OBJECT
+public:
+    explicit get_train_log_websocket(QObject* parent)
+        : QObject(parent) 
+        {
+            qDebug() << "websocket constructed!";
+        connect (&m_websocket, &QWebSocket::connected
+                , this
+                , &get_train_log_websocket::on_connected
+                ) ;
+        connect (&m_websocket, &QWebSocket::textMessageReceived
+                , this
+                , &get_train_log_websocket::on_text_message_received
+                ) ;
+    }
+    void connect_to_server(const QUrl& url) {
+        m_url = url;
+        m_websocket.open(url);
+    }
+signals:
+    void new_data_received(float loss, float lr, int epoch);
+private slots:
+    void on_connected() {
+        qDebug() << "Connected to training monitor server!";
+        m_websocket.sendTextMessage("start_stream");
+    }
+    void on_text_message_received(QString message) {
+        QJsonDocument doc = QJsonDocument::fromJson(message.toUtf8());
+        QJsonObject json = doc.object();
 
+        emit new_data_received(
+            json["loss"].toDouble(),
+            json["lr"].toDouble(),
+            json["epoch"].toInt());
+    }
+private:
+    QWebSocket m_websocket;
+    QUrl m_url;
+};
 
 
 class gpu_performance_monitor: public QWidget {
+    Q_OBJECT
 public:
     explicit gpu_performance_monitor(QWidget* parent = nullptr);
     ~gpu_performance_monitor();
 
 private slots:
-    void handle_data_ready();
+    // void handle_data_ready();
 private: 
     bool init_NVML();
     void init_monitors();
+    void init_training_monitors();
     void data_collection_thread();
 
     bool m_nvml_initialized = false;
@@ -113,10 +165,17 @@ private:
 
     QChart* m_thermal_chart;
     QChart* m_usage_chart;
+    QChart* m_training_log_chart;
     QChartView* m_thermal_view;
     QChartView* m_usage_view;
+    QChartView* m_training_log_view;
     QValueAxis* m_thermal_x_axis;
     QValueAxis* m_usage_x_axis;
+    
+    QValueAxis* m_train_x_axis_epoch;
+    QValueAxis* m_train_y_loss;
+    QValueAxis* m_train_y_lr;
+
     
     QValueAxis* m_y_temp;
     QValueAxis* m_y_power;
@@ -155,9 +214,27 @@ private:
                                       , Power_Updater>
                                       > m_power_monitor;
 
+    using Epoch_Getter = std::function<int()>;
+    using Epoch_Setter = std::function<void(int)>;
+
+    std::unique_ptr<gpu_monitor_series< int
+                                      , Epoch_Getter
+                                      , Epoch_Setter>
+                                      > m_epoch_monitor; 
+
+    using Lr_Getter = std::function<float()>;
+    using lr_Setter = std::function<void(float)>;
+
+    std::unique_ptr<gpu_monitor_series< float 
+                                      , Epoch_Getter
+                                      , Epoch_Setter>
+                                      > m_lr_monitor;
+
     QTimer* m_update_timer;
     QFutureWatcher<void> m_data_watcher;
     qint64 m_start_time;
     QMutex m_nvml_mutex;
+
+    get_train_log_websocket* m_train_log_websocket;
 };
 #endif

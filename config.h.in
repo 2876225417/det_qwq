@@ -1,0 +1,13 @@
+
+
+#ifndef CONFIG_H_IN
+#define CONFIG_H_IN
+
+#include <string>
+
+namespace build_cfg{
+    const std::string PYTHON_VENV_EXE = "@PYTHON_VENV_EXE@";
+    const std::string YOLO_SCRIPT_DIR = "@CMAKE_BINARY_DIR@/pyscripts/yolo_trainer";
+}
+
+#endif

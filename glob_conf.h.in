@@ -1,0 +1,7 @@
+#ifndef GLOB_CONF_H
+#define GLOB_CONF_H
+
+
+#define MAXIMUM_CAMERAS_ALLOWED "@MAXIMUM_CAMERAS_ALLOWED@"
+
+#endif

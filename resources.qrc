@@ -1,0 +1,14 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>icons/dashboard.svg</file>
+        <file>icons/robot.svg</file>
+        <file>icons/database.svg</file>
+        <file>icons/cog.svg</file>
+        <file>icons/detect.svg</file>
+        <file>icons/serial-port.svg</file>
+    </qresource>
+    <qresource prefix="/shaders">
+        <file alias="plot_vsh">shaders/plot.vert</file>
+        <file alias="plot_fsh">shaders/plot.frag</file>
+    </qresource>
+</RCC>

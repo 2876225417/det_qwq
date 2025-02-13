@@ -3,11 +3,21 @@
 
 #include <QSqlDatabase>
 #include <QSqlError>
+#include <qdatetime.h>
+#include <qjsonobject.h>
 #include <string_view>
 #include <string>
 #include <QSqlQuery>
 #include <QVariant>
 
+
+struct model_summary {
+    QString train_id;
+    QString save_path;
+    QDateTime timestamp;
+    double mp50;
+    qint64 params;
+};
 
 class dbConn
 {
@@ -72,6 +82,11 @@ public:
                        , const QString& width
                        , const QString& height
                        );
+
+    int 
+    insert_new_trained_model(const QJsonObject& report);
+
+    QList<model_summary> get_all_models();
 
 private:
     dbConn() = default;

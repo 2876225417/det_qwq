@@ -3,6 +3,9 @@
 #include <QFormLayout>
 
 #include <QBoxLayout>
+#include <qboxlayout.h>
+#include <qgroupbox.h>
+#include <qvariant.h>
 detectionBoard::detectionBoard(QWidget* parent)
     : QWidget(parent)
     , _label(new QLabel())
@@ -17,6 +20,40 @@ detectionBoard::detectionBoard(QWidget* parent)
 
     // #1 detection main layout
     QHBoxLayout* layout_1 = new QHBoxLayout();
+    
+    QHBoxLayout* detection_board_layout = new QHBoxLayout();
+
+    QHBoxLayout* detection_board_layout_wrapper = new QHBoxLayout();
+    QGroupBox*   detection_board = new QGroupBox("Detection Panel");
+    // config panel
+    QVBoxLayout* config_panel_layout_wrapper = new QVBoxLayout();
+    QGroupBox* config_panel = new QGroupBox("Config");
+
+
+    config_panel->setLayout(config_panel_layout_wrapper);
+    // detection panel
+    QVBoxLayout* detection_panel_layout_wrapper=  new QVBoxLayout();
+    QGroupBox* detection_panel = new QGroupBox("Detection");
+
+    QHBoxLayout* detection_operation_panel_layout_wrapper = new QHBoxLayout();
+    QGroupBox* detection_operation_panel = new QGroupBox();
+
+    detection_operation_panel->setLayout(detection_operation_panel_layout_wrapper);
+
+    QHBoxLayout* detection_result_panel_layout_wrapper = new QHBoxLayout();
+    QGroupBox* detection_result_panel = new QGroupBox();
+
+    detection_result_panel->setLayout(detection_result_panel_layout_wrapper);
+
+    detection_panel_layout_wrapper->addWidget(detection_operation_panel,1);
+    detection_panel_layout_wrapper->addWidget(detection_result_panel, 4);
+
+    detection_panel->setLayout(detection_panel_layout_wrapper);
+
+    detection_board_layout_wrapper->addWidget(config_panel, 1);
+    detection_board_layout_wrapper->addWidget(detection_panel, 4);
+    detection_board->setLayout(detection_board_layout_wrapper);
+
 
     QWidget* main_group = new QWidget();
     main_group->setStyleSheet("background-color: #333;"
@@ -99,11 +136,14 @@ detectionBoard::detectionBoard(QWidget* parent)
     sub_layout->addWidget(cam_group);
 
     main_group->setLayout(sub_layout);
+
+
     _push_button_stop_video->setEnabled(false);
-
-
     layout_1->addWidget(main_group);
-    setLayout(layout_1);
+
+
+    detection_board_layout->addWidget(detection_board);
+    setLayout(detection_board_layout);
 
     connect(_push_button_load_image
            , &QPushButton::clicked

@@ -8,6 +8,7 @@
 #include <qdatetime.h>
 #include <qdatetimeedit.h>
 #include <qfuturewatcher.h>
+#include <qjsonobject.h>
 #include <qlabel.h>
 #include <qline.h>
 #include <qlineseries.h>
@@ -22,6 +23,7 @@
 #include <qvalueaxis.h>
 #include <qwidget.h>
 
+#include "../../dbconn.h"
 
 
 gpu_performance_monitor::gpu_performance_monitor(QWidget* parent)
@@ -30,9 +32,6 @@ gpu_performance_monitor::gpu_performance_monitor(QWidget* parent)
     QVBoxLayout* monitor_wrapper = new QVBoxLayout(this);
 
     m_train_log_websocket = new get_train_log_websocket(this);
-    connect(m_train_log_websocket, &get_train_log_websocket::new_data_received, this, [this]() {
-        qDebug() << "get_new_";
-    });
 
     m_train_log_websocket->connect_to_server(QUrl("ws://localhost:8765"));
 
@@ -40,6 +39,7 @@ gpu_performance_monitor::gpu_performance_monitor(QWidget* parent)
     QWidget* gpu_monitor_tab = new QWidget();
 
     QVBoxLayout* gpu_monitor_wrapper = new QVBoxLayout();
+    QVBoxLayout* train_monitor_wrapper = new QVBoxLayout();
 
     QHBoxLayout* monitor_thermal_status_wrapper = new QHBoxLayout();
 
@@ -115,7 +115,24 @@ gpu_performance_monitor::gpu_performance_monitor(QWidget* parent)
     QWidget* training_log_tab = new QWidget();
 
     m_training_log_chart = new QChart();
+    m_train_x_axis = new QValueAxis();
+    m_train_y_loss = new QValueAxis();
+    m_train_y_lr = new QValueAxis();
 
+    m_train_x_axis->setTitleText("Epoch");
+    m_train_y_loss->setTitleText("Loss");
+    m_train_y_lr->setTitleText("Lr");
+
+    m_training_log_chart->addAxis(m_train_x_axis, Qt::AlignBottom);
+    m_training_log_chart->addAxis(m_train_y_loss, Qt::AlignLeft);
+    m_training_log_chart->addAxis(m_train_y_lr, Qt::AlignRight);
+
+
+
+    m_training_log_view = new QChartView(m_training_log_chart);
+    m_training_log_view->setRenderHint(QPainter::Antialiasing);
+    train_monitor_wrapper->addWidget(m_training_log_view);
+    training_log_tab->setLayout(train_monitor_wrapper);
 
     monitor_tabs->addTab(gpu_monitor_tab, "gpu");
     monitor_tabs->addTab(training_log_tab, "training");
@@ -124,6 +141,7 @@ gpu_performance_monitor::gpu_performance_monitor(QWidget* parent)
     monitor_wrapper->addWidget(monitor_tabs);
 
     init_monitors();
+    init_training_monitors();
     m_nvml_initialized = init_NVML();
 
     if (!m_nvml_initialized) {
@@ -140,6 +158,61 @@ gpu_performance_monitor::gpu_performance_monitor(QWidget* parent)
             m_data_watcher.setFuture(QtConcurrent::run([this](){ data_collection_thread(); }));
         }
     });
+
+    connect ( m_train_log_websocket
+            , &get_train_log_websocket::train_started
+            , this
+            , [this](QString train_id, int total_batches, int total_epochs) {
+                QString current_train_id = train_id;
+                int current_total_batches = total_batches;
+                int current_total_epochs = total_epochs;
+
+                qDebug() << "train_id: " << current_train_id;
+                qDebug() << "total_batches: " << current_total_batches;
+                qDebug() << "total_epochs: " << current_total_epochs;
+            });
+
+    connect ( m_train_log_websocket
+            , &get_train_log_websocket::train_ended
+            , this
+            , [this](QJsonObject report) {
+                const QString train_id = report.value("train_id").toString();
+                const QJsonObject model_info = report.value("model_info").toObject();
+                qDebug() << "Training is over!/n/n/n";
+                qDebug().nospace()
+                    << "\n=== Training Report ==="
+                    << "\nTrain ID: " << train_id
+                    << "\nParameters: " << model_info.value("params").toVariant().toLongLong()
+                    << "\nLayers: " << model_info.value("layers").toInt()
+                    << "\nmAP50: " << report["val_metrics"].toObject().value("mAP50").toDouble()
+                    << "\nDuration: " << report.value("duration").toString();
+                
+                dbConn::instance().insert_new_trained_model(report);
+            });
+
+    connect ( m_train_log_websocket
+            , &get_train_log_websocket::training_metrics
+            , this
+            , [this](QJsonObject metrics) {
+            int epoch = metrics["epoch"].toInt();
+            float loss = metrics["loss"].toDouble();
+            float lr = metrics["lr"].toDouble();
+
+            static float current_loss = 0.f;
+            current_loss = loss;
+            qDebug() << "loss: " << current_loss;
+            m_loss_series->update(epoch, current_loss);
+            
+            static float current_lr = 0.f;
+            current_lr = lr;
+            qDebug() << "lr: " << lr;
+            m_lr_series->update(epoch, current_lr);
+
+            qDebug() << "epoch: " << epoch;
+
+            m_train_y_loss->setRange(0, current_loss * 1.2f);
+            m_train_y_lr->setRange(0, current_lr * 1.2f);
+        });
 
     m_update_timer->start(1000);
 }
@@ -263,8 +336,28 @@ void gpu_performance_monitor::init_monitors() {
     });
 }
 
-void init_training_monitors() {
+void gpu_performance_monitor::init_training_monitors() {
+    Loss_Getter loss_getter = []() { return 0.f; };
+    Loss_Updater loss_updater = [this](float) { };
+    m_loss_series = std::make_unique<train_monitor_series< float, Loss_Getter, Loss_Updater>
+                                                         > ( m_training_log_chart
+                                                           , m_train_x_axis, m_train_y_loss
+                                                           , "Loss", Qt::red
+                                                           , loss_getter, loss_updater
+                                                           ) ;
     
+    Lr_Getter lr_getter = []() { return 0.f; };
+    Lr_Updater lr_updater = [this](float) { };
+    m_lr_series = std::make_unique<train_monitor_series< float, Lr_Getter, Lr_Updater>
+                                                       > ( m_training_log_chart
+                                                         , m_train_x_axis, m_train_y_lr
+                                                         , "Lr", Qt::blue
+                                                         , lr_getter, lr_updater
+                                                         ) ;
+}
+
+void gpu_performance_monitor::data_received_from_socket() {
+
 }
 
 void gpu_performance_monitor::data_collection_thread() {

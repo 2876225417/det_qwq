@@ -11,6 +11,7 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS
     OpenGL
     OpenGLWidgets
     Charts
+    Sql
 )
 find_package(OpenGL REQUIRED)
 
@@ -24,5 +25,7 @@ target_link_libraries(gpu_info PRIVATE Qt${QT_VERSION_MAJOR}::OpenGL)
 target_link_libraries(gpu_info PRIVATE Qt${QT_VERSION_MAJOR}::OpenGLWidgets)
 target_link_libraries(gpu_info PRIVATE Qt${QT_VERSION_MAJOR}::Gui)
 target_link_libraries(gpu_info PRIVATE Qt${QT_VERSION_MAJOR}::Charts)
+target_link_libraries(gpu_info PRIVATE Qt${QT_VERSION_MAJOR}::Sql)
+
 
 target_link_libraries(gpu_info PRIVATE OpenGL::GL nvidia-ml)

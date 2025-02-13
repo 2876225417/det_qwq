@@ -1,6 +1,9 @@
 #include "dbconn.h"
 #include <QMessageBox>
 #include <QDateTime>
+#include <qjsonobject.h>
+#include <qlineedit.h>
+#include <qlogging.h>
 
 void dbConn::setConnectionInfo( std::string_view host
                               , int port
@@ -41,6 +44,77 @@ void dbConn::closeDatabase(){
 
 QSqlDatabase dbConn::getDatabase(){
     return m_db;
+}
+
+int
+dbConn::insert_new_trained_model(const QJsonObject& report) {
+    if (!dbConn::instance().getDatabase().isOpen()) {
+        qDebug() << "Failed: Database not open!";
+        return -1;
+    }
+
+    QSqlQuery query(dbConn::instance().getDatabase());
+
+    query.prepare(
+        "INSERT INTO training_records ("
+        "train_id, save_path, timestamp, duration, params, layers,"
+        "gflops, gradients, mAP50, mAP5095, precision, recall,"
+        "preprocess_ms, inference_ms, postprocess_ms"
+        ") VALUES ("
+        ":train_id, :save_path, :timestamp, :duration, :params, :layers,"
+        ":gflops, :gradients, :mAP50, :mAP5095, :precision, :recall,"
+        ":preprocess_ms, :inference_ms, :postprocess_ms)"
+    );
+
+    QDateTime timestamp = QDateTime::fromString(report["timestamp"].toString(), Qt::ISODate);
+    query.bindValue(":train_id", report["train_id"].toString());
+    query.bindValue(":save_path", report["save_path"].toString());
+    query.bindValue(":timestamp", timestamp);
+    query.bindValue(":duration", report["duration"].toString());
+
+    QJsonObject modelInfo = report["model_info"].toObject();
+    query.bindValue(":params", modelInfo["params"].toVariant().toLongLong());
+    query.bindValue(":layers", modelInfo["layers"].toInt());
+    query.bindValue(":gflops", modelInfo["gflops"].toDouble());
+    query.bindValue(":gradients", modelInfo["gradients"].toInt());
+
+    QJsonObject valMetrics = report["val_metrics"].toObject();
+    query.bindValue(":mAP50", valMetrics["mAP50"].toDouble());
+    query.bindValue(":mAP5095", valMetrics["mAP5095"].toDouble());
+    query.bindValue(":precision", valMetrics["precision"].toDouble());
+    query.bindValue(":recall", valMetrics["recall"].toDouble());
+
+    QJsonObject speedStats = report["speed_stats"].toObject();
+    query.bindValue(":preprocess_ms", speedStats["preprocess"].toDouble());
+    query.bindValue(":inference_ms", speedStats["inference"].toDouble());
+    query.bindValue(":postprocess_ms", speedStats["postprocess"].toDouble());
+
+    if (!query.exec()) {
+        qCritical() << "Insert failed:" << query.lastError().text()
+                   << "\nQuery:" << query.lastQuery();
+        return -2;
+    }
+    return 1; // 成功返回1
+}
+
+QList<model_summary> dbConn::get_all_models() {
+    QList<model_summary> models;
+
+    if (!dbConn::instance().getDatabase().isOpen()) {
+        qDebug() << "Failed: Database not open!";
+        return models;
+    }
+
+    QSqlQuery query(dbConn::instance().getDatabase());
+    query.prepare(
+        "SELECT train_id, save_path, timestamp, mAP50, params "
+        "FROM training_records "
+        "ORDER BY timestamp DESC"  // 按最新时间排序
+    );
+    if (!query.exec()) {
+        qCritical() << "Query failed: " << query.lastError().text();
+        return models;
+    }
 }
 
 int

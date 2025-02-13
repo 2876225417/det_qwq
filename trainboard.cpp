@@ -6,7 +6,11 @@
 #include <qfilesystemwatcher.h>
 #include <qgroupbox.h>
 #include <qiodevicebase.h>
+#include <qjsonobject.h>
 #include <qlabel.h>
+#include <qpoint.h>
+#include <qprocess.h>
+#include <qprogressbar.h>
 #include <qtextoption.h>
 #include <qtimer.h>
 
@@ -36,26 +40,49 @@ TrainBoard::TrainBoard(QWidget* parent)
     performance_monitor_console_wrapper->addWidget(performance_panel);
     performance_monitor_console->setLayout(performance_monitor_console_wrapper);
 
+    
     QVBoxLayout* training_console_wrapper = new QVBoxLayout();
     QGroupBox* training_console = new QGroupBox("Training Console");
     
-    TrainLabel = new QLabel("Training Control Board", this);
-    training_console_wrapper->addWidget(TrainLabel);
+    QHBoxLayout* training_dashboard = new QHBoxLayout();
+    QVBoxLayout* control_training_layout_wrapper = new QVBoxLayout();
+    QVBoxLayout* training_indicator_layout_wrapper = new QVBoxLayout();
 
     startButton = new QPushButton("Start Training", this);
-    training_console_wrapper->addWidget(startButton);
+    control_training_layout_wrapper->addWidget(startButton);
 
     stopButton = new QPushButton("Stop Training", this);
     stopButton->setEnabled(false);
-    training_console_wrapper->addWidget(stopButton);
+    control_training_layout_wrapper->addWidget(stopButton);
+
+    QProgressBar* training_progress = new QProgressBar(this);
+
+    connect ( performance_panel->m_train_log_websocket
+            , &get_train_log_websocket::training_metrics
+            , this
+            , [this, training_progress](QJsonObject json) {
+                int epoch = json["epoch"].toInt();
+                int total_epochs = json["total_epochs"].toInt();
+                qDebug() << "Testting signal";
+                qDebug() << "Epoch:" << epoch;
+                qDebug() << "Total Epochs:" << total_epochs;
+                training_progress->setMaximum(total_epochs);
+                training_progress->setValue(epoch);
+            });
+
+    training_indicator_layout_wrapper->addWidget(training_progress);
+    
 
     logDisplay = new QPlainTextEdit(this);
     logDisplay->setReadOnly(true);
+
+    
+    
+    training_dashboard->addLayout(control_training_layout_wrapper);
+    training_dashboard->addLayout(training_indicator_layout_wrapper);
+    training_console_wrapper->addLayout(training_dashboard);
     training_console_wrapper->addWidget(logDisplay);
-    
-    
     training_console->setLayout(training_console_wrapper);
-    
     
     training_log_wrapper->addWidget(performance_monitor_console, 7);
     training_log_wrapper->addWidget(training_console, 3);

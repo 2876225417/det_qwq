@@ -163,7 +163,7 @@ cv::Mat onnxruntime_inference_session::_infer(const cv::Mat& in_mat){
 
     float t = (cv::getTickCount() - start_) / static_cast<float>(cv::getTickFrequency());
     cv::putText(
-        in_frame
+         in_frame
         , cv::format("FPS: %.2f", 1.0 / t)
         , cv::Point(20, 48)
         , cv::FONT_HERSHEY_PLAIN

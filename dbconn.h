@@ -15,7 +15,7 @@ struct model_summary {
     QString train_id;
     QString save_path;
     QDateTime timestamp;
-    double mp50;
+    double map50;
     qint64 params;
 };
 

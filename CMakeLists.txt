@@ -18,17 +18,21 @@ add_subdirectory(trainboard)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(FindPythonLocal)
 
-set(ONNXRUNTIME_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/onnxruntime_gpu/include")
-set(ONNXRUNTIME_LIB_DIR     "${CMAKE_SOURCE_DIR}/onnxruntime_gpu/lib")
+set(ONNXRUNTIME_GPU_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/onnxruntime_gpu/include")
+set(ONNXRUNTIME_GPU_LIB_DIR     "${CMAKE_SOURCE_DIR}/onnxruntime_gpu/lib")
+set(ONNXRUNTIME_CPU_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/onnxruntime_gpu/include")
+set(ONNXRUNTIME_CPU_LIB_DIR     "${CMAKE_SOURCE_DIR}/onnxruntime_gpu/lib")
 set(CUDA_INCLUDE_DIR        "/opt/cuda/include")
 set(OPENCV_INCLUDE_DIR      "/usr/include/opencv4")
 
-include_directories(${ONNXRUNTIME_INCLUDE_DIR})
+# include_directories(${ONNXRUNTIME_GPU_INCLUDE_DIR})
+include_directories(${ONNXRUNTIME_CPU_INCLUDE_DIR})
 include_directories(${CUDA_INCLUDE_DIR})
 include_directories(${OPENCV_INCLUDE_DIR})
 
 link_directories(
-    ${ONNXRUNTIME_LIB_DIR}
+#    ${ONNXRUNTIME_GPU_LIB_DIR}
+    ${ONNXRUNTIME_CPU_LIB_DIR}
     /usr/lib
 )
 
@@ -52,7 +56,7 @@ endif()
 
 # add_definitions(-DENABLE_SR)
 
-find_package(Boost REQUIRED COMPONENTS system filesystem)
+find_package(Boost 1.87.0 REQUIRED COMPONENTS system filesystem)
 
 if(NOT Python_EXECUTABLE)
     find_package(Python REQUIRED COMPONENTS Interpreter)

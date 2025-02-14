@@ -2,3 +2,4 @@ build
 .cache
 ultralytics
 onnxruntime_gpu
+onnxruntime

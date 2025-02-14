@@ -1,10 +1,22 @@
 #include "detectionboard.h"
+#include "dbconn.h"
 #include "qt_utils.hpp"
 #include <QFormLayout>
 
 #include <QBoxLayout>
 #include <qboxlayout.h>
+#include <qcheckbox.h>
+#include <qcombobox.h>
+#include <qdatetime.h>
+#include <qformlayout.h>
 #include <qgroupbox.h>
+#include <qlabel.h>
+#include <qlayout.h>
+#include <qlogging.h>
+#include <qoverload.h>
+#include <qpushbutton.h>
+#include <qspinbox.h>
+#include <qsqlquery.h>
 #include <qvariant.h>
 detectionBoard::detectionBoard(QWidget* parent)
     : QWidget(parent)
@@ -24,37 +36,180 @@ detectionBoard::detectionBoard(QWidget* parent)
     QHBoxLayout* detection_board_layout = new QHBoxLayout();
 
     QHBoxLayout* detection_board_layout_wrapper = new QHBoxLayout();
-    QGroupBox*   detection_board = new QGroupBox("Detection Panel");
+    QGroupBox*   detection_board = new QGroupBox();
     // config panel
     QVBoxLayout* config_panel_layout_wrapper = new QVBoxLayout();
     QGroupBox* config_panel = new QGroupBox("Config");
 
+    QVBoxLayout* model_config_layout_wrapper = new QVBoxLayout();
+    QGroupBox* model_config_layout = new QGroupBox("Model config");
+    QHBoxLayout* model_select_layout_wrapper = new QHBoxLayout();
+    QLabel* model_select_id_label = new QLabel("Model id: ");
+    QComboBox* model_select_combobox = new QComboBox();
+    QPushButton* model_select_button = new QPushButton("Refresh");
+    QFormLayout* model_detail_form_wrapper = new QFormLayout();
+    QGroupBox* model_detail_form = new QGroupBox();
+
+    QLabel* model_id_detail = new QLabel();
+    QLabel* model_path_detail = new QLabel();
+    QLabel* model_time_detail = new QLabel();
+    QLabel* model_params_detail = new QLabel();
+    QLabel* model_mAP50_detail = new QLabel();
+    QLabel* model_recall_detail = new QLabel();
+    QLabel* model_layers_detail = new QLabel();
+    QLabel* model_gradients_detail = new QLabel();
+    QLabel* model_precision_detail = new QLabel();
+
+    model_detail_form->setLayout(model_detail_form_wrapper);
+
+    model_detail_form_wrapper->addRow("Model id:", model_id_detail);
+    model_detail_form_wrapper->addRow("Save Path:", model_path_detail);
+    model_detail_form_wrapper->addRow("Training Time:", model_time_detail);
+    model_detail_form_wrapper->addRow("Pramas:", model_params_detail);
+    model_detail_form_wrapper->addRow("mAP50:", model_mAP50_detail);
+    model_detail_form_wrapper->addRow("Recall:", model_recall_detail);
+    model_detail_form_wrapper->addRow("Layers: ", model_layers_detail);
+    model_detail_form_wrapper->addRow("Gradients: ", model_gradients_detail);
+    model_detail_form_wrapper->addRow("Precision: ", model_precision_detail);
+
+    auto update_model_list = [=]() {
+        model_select_combobox->clear();
+        auto models = dbConn::instance().get_all_models();
+        for (const auto& model: models) {
+            QString display_text = QString("%1").arg(model.train_id.left(8));
+            model_select_combobox->addItem(display_text, QVariant(model.train_id));
+        }
+    };
+
+    auto update_model_details = [=](int index) {
+        model_id_detail->clear();
+        model_path_detail->clear();
+        model_time_detail->clear();
+        model_params_detail->clear();
+        model_mAP50_detail->clear();
+        model_recall_detail->clear();
+
+        if (index < 0) return;
+
+        QVariant selected_model_id = model_select_combobox->itemData(index);
+        qDebug() << "selected_id: " << selected_model_id;
+        if (!selected_model_id.isValid()) {
+            model_id_detail->setText("Invalid model option");
+            return;
+        }
+
+        QSqlQuery query(dbConn::instance().getDatabase());
+        query.prepare(
+            "SELECT save_path, timestamp, params, mAP50, recall "
+            "FROM training_records "
+            "WHERE train_id = ?"
+        );
+
+        query.addBindValue(selected_model_id.toString());
+
+        if (!query.exec()) {
+            qCritical() << "Query failed: " << query.lastQuery().toStdString();
+            model_id_detail->setText("Database error");
+            return;
+        }
+
+        if (query.next()) {
+            model_id_detail->setText(selected_model_id.toString());
+            model_path_detail->setText(query.value("save_path").toString());
+
+            QDateTime model_gen_date = query.value("timestamp").toDateTime().toLocalTime();
+            model_time_detail->setText(model_gen_date.toString("yyyy-MM-dd HH:mm"));
+
+            qint64 params = query.value("params").toLongLong();
+            model_params_detail->setText(QLocale().toString(params));
+
+            double map50 = query.value("mAP50").toDouble();
+            model_mAP50_detail->setText(QString::number(map50, 'f', map50 < 0.0001 ? 6 : 4));
+            
+            double recall = query.value("recall").toDouble();
+            model_recall_detail->setText(QString("%1%").arg(recall * 100, 0, 'f', 2));
+        } else model_id_detail->setText("Not found the corresponding model");
+
+        // 设置 识别时使用的模型路径
+
+    };
+
+    connect( model_select_combobox
+        , QOverload<int>::of(&QComboBox::currentIndexChanged)
+        , this
+        , update_model_details);
+
+    model_select_layout_wrapper->addWidget(model_select_id_label);
+    model_select_layout_wrapper->addWidget(model_select_combobox);
+    model_select_layout_wrapper->addWidget(model_select_button);
+    model_config_layout_wrapper->addLayout(model_select_layout_wrapper);
+    model_config_layout_wrapper->addWidget(model_detail_form);
+
+    model_config_layout->setLayout(model_config_layout_wrapper);
+
+    QVBoxLayout* detection_config_layout_wrapper = new QVBoxLayout();
+    QGroupBox* detection_config_layout = new QGroupBox("Detection Config");
+
+    QHBoxLayout* enable_cuda_check_layout = new QHBoxLayout();
+    QLabel* cuda_check_label = new QLabel("Enable CUDA ");
+    QCheckBox* cuda_checkbox = new QCheckBox();
+    enable_cuda_check_layout->addWidget(cuda_check_label);
+    enable_cuda_check_layout->addWidget(cuda_checkbox);
+
+    QHBoxLayout* adjust_score_threshold_layout = new QHBoxLayout();
+    QLabel* score_threshold_label = new QLabel("Threshold");
+    QSpinBox* score_threshold_adjuster = new QSpinBox();
+    adjust_score_threshold_layout->addWidget(score_threshold_label);
+    adjust_score_threshold_layout->addWidget(score_threshold_adjuster);
+
+    QHBoxLayout* adjust_nms_layout = new QHBoxLayout();
+    QHBoxLayout* adjust_nms_1st_layout = new QHBoxLayout();
+    QLabel* adjust_nms_1st_label = new QLabel("NMS_1");
+    QSpinBox* nms_1st_adjuster = new QSpinBox();
+    adjust_nms_1st_layout->addWidget(adjust_nms_1st_label);
+    adjust_nms_1st_layout->addWidget(nms_1st_adjuster);
+
+    QHBoxLayout* adjust_nms_2nd_layout = new QHBoxLayout();
+    QLabel* adjust_nms_2nd_label = new QLabel("NMS_2");
+    QSpinBox* nms_2nd_adjuster = new QSpinBox();
+    adjust_nms_2nd_layout->addWidget(adjust_nms_2nd_label);
+    adjust_nms_2nd_layout->addWidget(nms_2nd_adjuster);
+
+    adjust_nms_layout->addLayout(adjust_nms_1st_layout);
+    adjust_nms_layout->addLayout(adjust_nms_2nd_layout);
+
+    QHBoxLayout* enable_cpu_mem_arena_layout = new QHBoxLayout();
+    
+    QHBoxLayout* set_intra_op_num_threads = new QHBoxLayout();
+    QComboBox* intra_op_num_threads_adjuster = new QComboBox();
+
+    QHBoxLayout* select_class_file_layout = new QHBoxLayout();
+
+    QHBoxLayout* set_graph_optimization_level_layout = new QHBoxLayout();
+
+
+    detection_config_layout_wrapper->addLayout(enable_cuda_check_layout);
+    detection_config_layout_wrapper->addLayout(adjust_score_threshold_layout);
+    detection_config_layout_wrapper->addLayout(adjust_nms_layout);
+    detection_config_layout->setLayout(detection_config_layout_wrapper);
+
+
+    QVBoxLayout* display_config_layout_wrapper = new QVBoxLayout();
+    QGroupBox* display_config_layout = new QGroupBox("Display Config");
+
+
+    display_config_layout->setLayout(display_config_layout_wrapper);
+
+    config_panel_layout_wrapper->addWidget(model_config_layout);
+    config_panel_layout_wrapper->addWidget(detection_config_layout);
+    config_panel_layout_wrapper->addWidget(display_config_layout);
+
+    connect (model_select_button, &QPushButton::clicked, update_model_list);
 
     config_panel->setLayout(config_panel_layout_wrapper);
-    // detection panel
-    QVBoxLayout* detection_panel_layout_wrapper=  new QVBoxLayout();
-    QGroupBox* detection_panel = new QGroupBox("Detection");
-
-    QHBoxLayout* detection_operation_panel_layout_wrapper = new QHBoxLayout();
-    QGroupBox* detection_operation_panel = new QGroupBox();
-
-    detection_operation_panel->setLayout(detection_operation_panel_layout_wrapper);
-
-    QHBoxLayout* detection_result_panel_layout_wrapper = new QHBoxLayout();
-    QGroupBox* detection_result_panel = new QGroupBox();
-
-    detection_result_panel->setLayout(detection_result_panel_layout_wrapper);
-
-    detection_panel_layout_wrapper->addWidget(detection_operation_panel,1);
-    detection_panel_layout_wrapper->addWidget(detection_result_panel, 4);
-
-    detection_panel->setLayout(detection_panel_layout_wrapper);
-
-    detection_board_layout_wrapper->addWidget(config_panel, 1);
-    detection_board_layout_wrapper->addWidget(detection_panel, 4);
-    detection_board->setLayout(detection_board_layout_wrapper);
 
 
+    // ----------------- //
     QWidget* main_group = new QWidget();
     main_group->setStyleSheet("background-color: #333;"
                               "border-radius: 5px;"
@@ -63,7 +218,7 @@ detectionBoard::detectionBoard(QWidget* parent)
 
     QVBoxLayout* sub_layout = new QVBoxLayout();
     /*-------------------sub_layout-------------------*/
-    QGroupBox* src_group = new QGroupBox("From Source");
+    QGroupBox* src_group = new QGroupBox("From Image/Video");
     src_group->setStyleSheet("background-color: #444;");
     QHBoxLayout* src_selection_layout = new QHBoxLayout();
     QGroupBox* selection_buttons_group = new QGroupBox();
@@ -129,6 +284,32 @@ detectionBoard::detectionBoard(QWidget* parent)
     camera_stream_layout->addWidget(cam_operations_group, 1);
     camera_stream_layout->addWidget(cam_streaming_group, 8);
     /*-------------------------------------------------*/
+
+
+    // detection panel
+    QVBoxLayout* detection_panel_layout_wrapper=  new QVBoxLayout();
+    QGroupBox* detection_panel = new QGroupBox("Detection");
+
+    QHBoxLayout* detection_operation_panel_layout_wrapper = new QHBoxLayout();
+    QGroupBox* detection_operation_panel = new QGroupBox();
+
+    detection_operation_panel->setLayout(detection_operation_panel_layout_wrapper);
+
+    QHBoxLayout* detection_result_panel_layout_wrapper = new QHBoxLayout();
+    QGroupBox* detection_result_panel = new QGroupBox();
+
+    detection_result_panel_layout_wrapper->addLayout(sub_layout);
+
+    detection_result_panel->setLayout(detection_result_panel_layout_wrapper);
+
+    detection_panel_layout_wrapper->addWidget(detection_operation_panel,1);
+    detection_panel_layout_wrapper->addWidget(detection_result_panel, 4);
+
+    detection_panel->setLayout(detection_panel_layout_wrapper);
+
+    detection_board_layout_wrapper->addWidget(config_panel, 2);
+    detection_board_layout_wrapper->addWidget(detection_panel, 7);
+    detection_board->setLayout(detection_board_layout_wrapper);
 
     cam_group->setLayout(camera_stream_layout);
 

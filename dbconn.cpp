@@ -109,12 +109,26 @@ QList<model_summary> dbConn::get_all_models() {
     query.prepare(
         "SELECT train_id, save_path, timestamp, mAP50, params "
         "FROM training_records "
-        "ORDER BY timestamp DESC"  // 按最新时间排序
+        "ORDER BY timestamp DESC"  
     );
     if (!query.exec()) {
         qCritical() << "Query failed: " << query.lastError().text();
         return models;
     }
+
+    while (query.next()) {
+        model_summary model;
+        model.train_id = query.value("train_id").toString();
+        model.save_path = query.value("save_path").toString();
+        model.timestamp = query.value("timestamp").toDateTime();
+        model.map50 = query.value("mAP50").toDouble();
+        model.params = query.value("params").toLongLong();
+
+        models.append(model);
+    }
+
+    qDebug() << "Fetch models' summary successfully: " << models.count();
+    return models;
 }
 
 int

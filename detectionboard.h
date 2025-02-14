@@ -2,6 +2,7 @@
 #define DETECTIONBOARD_H
 
 
+#include "dbconn.h"
 #include <QWidget>
 #include <QPushButton>
 #include <QFileDialog>
@@ -64,6 +65,7 @@ private:
     QTimer*             _video_timer;
     video_infer_thread* _video_infer_thread;
     video_infer_thread* _video_infer_thread_from_source;
+
 
     void                _show_image(const cv::Mat& mat, QLabel* label);
 };

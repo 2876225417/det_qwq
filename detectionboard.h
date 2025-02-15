@@ -23,6 +23,9 @@
 #include <QTimer>
 
 #include "onnxruntime_inference_session.h"
+#include <qcontainerfwd.h>
+
+#include <QTableWidget>
 
 class video_infer_thread;
 
@@ -65,9 +68,10 @@ private:
     QTimer*             _video_timer;
     video_infer_thread* _video_infer_thread;
     video_infer_thread* _video_infer_thread_from_source;
-
+    QTableWidget*       m_det_result_table;
 
     void                _show_image(const cv::Mat& mat, QLabel* label);
+    QStringList         m_labels;
 };
 
 enum class video_source_type { file, stream };
@@ -98,13 +102,25 @@ public:
             onnxruntime_inference_session inference_session;
             cv::Mat infer_result_image = inference_session._infer(frame);
 
+            QStringList labels = inference_session.get_labels();
+
+            detection_result dr;
+            for (auto& box: inference_session.get_boxes())
+                dr.boxes.append(QRect(box.x, box.y, box.width, box.height));
+
+            dr.class_ids = QVector<int>(inference_session.get_class_ids().begin(), inference_session.get_class_ids().end());
+            dr.scores = QVector<float>(inference_session.get_scores().begin(), inference_session.get_scores().end());
+
+            emit setup_labels(labels);
+            emit result_ready(dr);
             emit _frame_processed(infer_result_image);
-            msleep(30);
+            msleep(10);
         }
     }
 signals:
     void _frame_processed(const cv::Mat& result);
-
+    void result_ready(const detection_result& res);
+    void setup_labels(const QStringList& labels);
 private:
     cv::VideoCapture* cap_;
 };

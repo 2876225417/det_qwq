@@ -1,22 +1,28 @@
 #include "detectionboard.h"
 #include "dbconn.h"
+#include "onnxruntime_inference_session.h"
 #include "qt_utils.hpp"
 #include <QFormLayout>
 
 #include <QBoxLayout>
+#include <qabstractitemview.h>
 #include <qboxlayout.h>
 #include <qcheckbox.h>
 #include <qcombobox.h>
+#include <qcontainerfwd.h>
 #include <qdatetime.h>
 #include <qformlayout.h>
 #include <qgroupbox.h>
 #include <qlabel.h>
 #include <qlayout.h>
 #include <qlogging.h>
+#include <qnamespace.h>
 #include <qoverload.h>
 #include <qpushbutton.h>
+#include <qsizepolicy.h>
 #include <qspinbox.h>
 #include <qsqlquery.h>
+#include <qtablewidget.h>
 #include <qvariant.h>
 detectionBoard::detectionBoard(QWidget* parent)
     : QWidget(parent)
@@ -59,6 +65,7 @@ detectionBoard::detectionBoard(QWidget* parent)
     QLabel* model_layers_detail = new QLabel();
     QLabel* model_gradients_detail = new QLabel();
     QLabel* model_precision_detail = new QLabel();
+    QLabel* model_mAP5095_detail = new QLabel();
 
     model_detail_form->setLayout(model_detail_form_wrapper);
 
@@ -71,6 +78,7 @@ detectionBoard::detectionBoard(QWidget* parent)
     model_detail_form_wrapper->addRow("Layers: ", model_layers_detail);
     model_detail_form_wrapper->addRow("Gradients: ", model_gradients_detail);
     model_detail_form_wrapper->addRow("Precision: ", model_precision_detail);
+    model_detail_form_wrapper->addRow("mAP5095", model_mAP5095_detail);
 
     auto update_model_list = [=]() {
         model_select_combobox->clear();
@@ -87,7 +95,11 @@ detectionBoard::detectionBoard(QWidget* parent)
         model_time_detail->clear();
         model_params_detail->clear();
         model_mAP50_detail->clear();
+        model_mAP5095_detail->clear();
         model_recall_detail->clear();
+        model_layers_detail->clear();
+        model_gradients_detail->clear();
+        model_precision_detail->clear();
 
         if (index < 0) return;
 
@@ -100,7 +112,7 @@ detectionBoard::detectionBoard(QWidget* parent)
 
         QSqlQuery query(dbConn::instance().getDatabase());
         query.prepare(
-            "SELECT save_path, timestamp, params, mAP50, recall "
+            "SELECT save_path, timestamp, params, mAP50, mAP5095, recall, layers, precision, gradients "
             "FROM training_records "
             "WHERE train_id = ?"
         );
@@ -125,9 +137,21 @@ detectionBoard::detectionBoard(QWidget* parent)
 
             double map50 = query.value("mAP50").toDouble();
             model_mAP50_detail->setText(QString::number(map50, 'f', map50 < 0.0001 ? 6 : 4));
-            
+         
+            double map5095 = query.value("mAP5095").toDouble();
+            model_mAP5095_detail->setText(QString::number(map5095, 'f', map5095 < 0.0001 ? 6 : 4));
+              
             double recall = query.value("recall").toDouble();
             model_recall_detail->setText(QString("%1%").arg(recall * 100, 0, 'f', 2));
+        
+            int layers = query.value("layers").toInt();
+            model_layers_detail->setText(QString::number(layers));
+
+            double precision = query.value("precision").toDouble();
+            model_precision_detail->setText(QString::number(precision, 'f', 4));
+
+            int gradients = query.value("gradients").toInt();
+            model_gradients_detail->setText(QString::number(gradients));
         } else model_id_detail->setText("Not found the corresponding model");
 
         // 设置 识别时使用的模型路径
@@ -149,7 +173,13 @@ detectionBoard::detectionBoard(QWidget* parent)
 
     QVBoxLayout* detection_config_layout_wrapper = new QVBoxLayout();
     QGroupBox* detection_config_layout = new QGroupBox("Detection Config");
-
+    
+    QHBoxLayout* select_detection_type_layout = new QHBoxLayout();
+    QLabel* detection_type_label = new QLabel("Det Type");
+    QComboBox* detection_type_combobox = new QComboBox();
+    select_detection_type_layout->addWidget(detection_type_label);
+    select_detection_type_layout->addWidget(detection_type_combobox);
+    
     QHBoxLayout* enable_cuda_check_layout = new QHBoxLayout();
     QLabel* cuda_check_label = new QLabel("Enable CUDA ");
     QCheckBox* cuda_checkbox = new QCheckBox();
@@ -179,30 +209,106 @@ detectionBoard::detectionBoard(QWidget* parent)
     adjust_nms_layout->addLayout(adjust_nms_2nd_layout);
 
     QHBoxLayout* enable_cpu_mem_arena_layout = new QHBoxLayout();
+    QLabel* check_cpu_mem_arena_label = new QLabel("Memory Arena");
+    QCheckBox* cpu_mem_arena_checkbox = new QCheckBox();
+    enable_cpu_mem_arena_layout->addWidget(check_cpu_mem_arena_label);
+    enable_cpu_mem_arena_layout->addWidget(cpu_mem_arena_checkbox);
     
-    QHBoxLayout* set_intra_op_num_threads = new QHBoxLayout();
+    QHBoxLayout* set_intra_op_num_threads_layout = new QHBoxLayout();
+    QLabel* intra_op_num_label = new QLabel("Intra Op");
     QComboBox* intra_op_num_threads_adjuster = new QComboBox();
+    set_intra_op_num_threads_layout->addWidget(intra_op_num_label);
+    set_intra_op_num_threads_layout->addWidget(intra_op_num_threads_adjuster);
 
     QHBoxLayout* select_class_file_layout = new QHBoxLayout();
-
+    QLabel* class_file_label = new QLabel("Class File");
+    QPushButton* select_class_file_button = new QPushButton("Select");
+    select_class_file_layout->addWidget(class_file_label);
+    select_class_file_layout->addWidget(select_class_file_button);
+    
     QHBoxLayout* set_graph_optimization_level_layout = new QHBoxLayout();
+    QLabel* graph_optimization_level_label = new QLabel("Graph Optimization");
+    QComboBox* select_graph_optimization_level = new QComboBox();
+    set_graph_optimization_level_layout->addWidget(graph_optimization_level_label);
+    set_graph_optimization_level_layout->addWidget(select_graph_optimization_level);
 
-
+    detection_config_layout_wrapper->addLayout(select_detection_type_layout);
     detection_config_layout_wrapper->addLayout(enable_cuda_check_layout);
     detection_config_layout_wrapper->addLayout(adjust_score_threshold_layout);
     detection_config_layout_wrapper->addLayout(adjust_nms_layout);
+    detection_config_layout_wrapper->addLayout(enable_cpu_mem_arena_layout);
+    detection_config_layout_wrapper->addLayout(set_intra_op_num_threads_layout);
+    detection_config_layout_wrapper->addLayout(select_class_file_layout);
+    detection_config_layout_wrapper->addLayout(set_graph_optimization_level_layout);
     detection_config_layout->setLayout(detection_config_layout_wrapper);
 
 
     QVBoxLayout* display_config_layout_wrapper = new QVBoxLayout();
     QGroupBox* display_config_layout = new QGroupBox("Display Config");
+     
+    QHBoxLayout* adjust_detection_border_color_wraper = new QHBoxLayout();
+    QLabel* detection_border_color_label = new QLabel("border Color");
+    QComboBox* border_color_combobox = new QComboBox();
+    border_color_combobox->addItem("red", QVariant::fromValue(border_color::red));
+    border_color_combobox->addItem("green", QVariant::fromValue(border_color::green));
+    border_color_combobox->addItem("blue", QVariant::fromValue(border_color::blue));
+    border_color_combobox->addItem("white", QVariant::fromValue(border_color::white));
+    border_color_combobox->addItem("black", QVariant::fromValue(border_color::black));
+    border_color_combobox->addItem("cyan", QVariant::fromValue(border_color::cyan));
+    adjust_detection_border_color_wraper->addWidget(detection_border_color_label);
+    adjust_detection_border_color_wraper->addWidget(border_color_combobox);
 
+    connect (border_color_combobox
+            , QOverload<int>::of(&QComboBox::currentIndexChanged)
+            , this, [this](int index) {
+                
 
+            });
+
+    QHBoxLayout* adjust_detection_font_type_wraper = new QHBoxLayout();
+    QLabel* detection_font_type_label = new QLabel("Font Type");
+    QComboBox* font_type_combobox = new QComboBox();
+    font_type_combobox->addItem("simplex", QVariant::fromValue(font_type::simplex));
+    font_type_combobox->addItem("plain", QVariant::fromValue(font_type::plain));
+    font_type_combobox->addItem("duplex", QVariant::fromValue(font_type::duplex));
+    font_type_combobox->addItem("complex", QVariant::fromValue(font_type::complex));
+    font_type_combobox->addItem("triplex", QVariant::fromValue(font_type::triplex));
+    font_type_combobox->addItem("complex_small", QVariant::fromValue(font_type::complex_small));
+    adjust_detection_font_type_wraper->addWidget(detection_font_type_label);
+    adjust_detection_font_type_wraper->addWidget(font_type_combobox);
+
+    QHBoxLayout* adjust_detection_font_color_wraper = new QHBoxLayout();
+    QLabel* detection_font_color_label = new QLabel("Font Color");
+    QComboBox* font_color_combobox = new QComboBox();
+    font_color_combobox->addItem("high contrast", QVariant::fromValue(font_color::high_contrast));
+    font_color_combobox->addItem("pure white", QVariant::fromValue(font_color::pure_white));
+    font_color_combobox->addItem("neon green", QVariant::fromValue(font_color::neon_green));
+    font_color_combobox->addItem("warning yellow", QVariant::fromValue(font_color::warning_yellow));
+    font_color_combobox->addItem("signal red", QVariant::fromValue(font_color::signal_red));
+    adjust_detection_font_color_wraper->addWidget(detection_font_color_label);
+    adjust_detection_font_color_wraper->addWidget(font_color_combobox);
+
+    QHBoxLayout* select_filling_color_wrapper = new QHBoxLayout();
+    QLabel* filling_color_label = new QLabel("Filling Color");
+    QComboBox* filling_color_combobox = new QComboBox();
+    filling_color_combobox->addItem("none", QVariant::fromValue(filling_color::None));
+    filling_color_combobox->addItem("dark overlay", QVariant::fromValue(filling_color::dark_overlay));
+    filling_color_combobox->addItem("light overlay", QVariant::fromValue(filling_color::light_overlay));
+    filling_color_combobox->addItem("danger highlight", QVariant::fromValue(filling_color::danger_highlight));
+    filling_color_combobox->addItem("info highlight", QVariant::fromValue(filling_color::info_highlight));
+    select_filling_color_wrapper->addWidget(filling_color_label);
+    select_filling_color_wrapper->addWidget(filling_color_combobox);
+
+    display_config_layout_wrapper->addLayout(adjust_detection_border_color_wraper);
+    display_config_layout_wrapper->addLayout(adjust_detection_font_type_wraper);
+    display_config_layout_wrapper->addLayout(adjust_detection_font_color_wraper);
+    display_config_layout_wrapper->addLayout(select_filling_color_wrapper);
+    
     display_config_layout->setLayout(display_config_layout_wrapper);
 
-    config_panel_layout_wrapper->addWidget(model_config_layout);
-    config_panel_layout_wrapper->addWidget(detection_config_layout);
-    config_panel_layout_wrapper->addWidget(display_config_layout);
+    config_panel_layout_wrapper->addWidget(model_config_layout, 3);
+    config_panel_layout_wrapper->addWidget(detection_config_layout, 4);
+    config_panel_layout_wrapper->addWidget(display_config_layout, 2);
 
     connect (model_select_button, &QPushButton::clicked, update_model_list);
 
@@ -276,7 +382,7 @@ detectionBoard::detectionBoard(QWidget* parent)
     src_cam_ifd_stream->setLayout(src_cam_ifd_stream_layout);
 
 
-    cam_streaming_layout->addWidget(src_cam_stream);
+    //cam_streaming_layout->addWidget(src_cam_stream);
     cam_streaming_layout->addWidget(src_cam_ifd_stream);
 
     cam_streaming_group->setLayout(cam_streaming_layout);
@@ -293,6 +399,13 @@ detectionBoard::detectionBoard(QWidget* parent)
     QHBoxLayout* detection_operation_panel_layout_wrapper = new QHBoxLayout();
     QGroupBox* detection_operation_panel = new QGroupBox();
 
+    m_det_result_table = new QTableWidget();
+    m_det_result_table->setColumnCount(4);
+
+    m_det_result_table->setHorizontalHeaderLabels({"Class", "Confidence", "Position", "size"});
+    m_det_result_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    detection_operation_panel_layout_wrapper->addWidget(m_det_result_table);
     detection_operation_panel->setLayout(detection_operation_panel_layout_wrapper);
 
     QHBoxLayout* detection_result_panel_layout_wrapper = new QHBoxLayout();
@@ -302,8 +415,8 @@ detectionBoard::detectionBoard(QWidget* parent)
 
     detection_result_panel->setLayout(detection_result_panel_layout_wrapper);
 
-    detection_panel_layout_wrapper->addWidget(detection_operation_panel,1);
-    detection_panel_layout_wrapper->addWidget(detection_result_panel, 4);
+    detection_panel_layout_wrapper->addWidget(detection_result_panel,4);
+    detection_panel_layout_wrapper->addWidget(detection_operation_panel, 1);
 
     detection_panel->setLayout(detection_panel_layout_wrapper);
 
@@ -313,8 +426,8 @@ detectionBoard::detectionBoard(QWidget* parent)
 
     cam_group->setLayout(camera_stream_layout);
 
-    sub_layout->addWidget(src_group);
-    sub_layout->addWidget(cam_group);
+    sub_layout->addWidget(src_group, 1);
+    sub_layout->addWidget(cam_group, 1);
 
     main_group->setLayout(sub_layout);
 
@@ -429,6 +542,35 @@ void detectionBoard::_on_start_video_clicked(){
            , &detectionBoard::_show_ifd_camera_result
            );
 
+    connect ( _video_infer_thread
+            , &video_infer_thread::result_ready
+            , this, [this](const detection_result& dr) {
+                for (int i = 0; i < dr.class_ids.size(); i++) {
+                    const int row = m_det_result_table->rowCount();
+                    m_det_result_table->insertRow(row);
+
+                    auto class_item = new QTableWidgetItem(QString(m_labels[dr.class_ids[i]]));
+                    auto conf_item = new QTableWidgetItem(QString::number(dr.scores[i], 'f', 2));
+                    auto pos_item = new QTableWidgetItem(QString("%1, %2")
+                                                                        .arg(dr.boxes[i].x())
+                                                                        .arg(dr.boxes[i].y()));
+                    auto size_item = new QTableWidgetItem(QString("%1x%2")
+                                                                        .arg(dr.boxes[i].width())
+                                                                        .arg(dr.boxes[i].height()));
+
+                    m_det_result_table->setItem(row, 0, class_item);
+                    m_det_result_table->setItem(row, 1, conf_item);
+                    m_det_result_table->setItem(row, 2, pos_item);
+                    m_det_result_table->setItem(row, 3, size_item);
+                }
+            }, Qt::QueuedConnection);
+
+    connect ( _video_infer_thread
+            , &video_infer_thread::setup_labels
+            , this, [this](const QStringList& labels) {
+                m_labels = labels;
+            });
+
     _video_infer_thread->start();
 
     _push_button_start_video->setEnabled(false);
@@ -486,8 +628,8 @@ void detectionBoard::_show_image(const cv::Mat& mat, QLabel* label){
 
     QPixmap tmp = QPixmap::fromImage(*img);
 
-    QPixmap scaled_pixmap = tmp.scaled(tmp.width() / 2
-                                      , tmp.height() / 2
+    QPixmap scaled_pixmap = tmp.scaled(tmp.width() 
+                                      , tmp.height() 
                                       , Qt::KeepAspectRatio
                                       , Qt::SmoothTransformation
                                       );

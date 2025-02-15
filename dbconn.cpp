@@ -107,7 +107,7 @@ QList<model_summary> dbConn::get_all_models() {
 
     QSqlQuery query(dbConn::instance().getDatabase());
     query.prepare(
-        "SELECT train_id, save_path, timestamp, mAP50, params "
+        "SELECT train_id, save_path, timestamp, mAP50, mAP5095, params, layers, precision, gradients "
         "FROM training_records "
         "ORDER BY timestamp DESC"  
     );
@@ -122,7 +122,11 @@ QList<model_summary> dbConn::get_all_models() {
         model.save_path = query.value("save_path").toString();
         model.timestamp = query.value("timestamp").toDateTime();
         model.map50 = query.value("mAP50").toDouble();
+        model.map5095 = query.value("mAP5095").toDouble();
         model.params = query.value("params").toLongLong();
+        model.layers = query.value("layers").toDouble();
+        model.precision = query.value("precision").toDouble();
+        model.gradients = query.value("gradients").toDouble();
 
         models.append(model);
     }

@@ -141,30 +141,35 @@ cv::Mat onnxruntime_inference_session::_infer(const cv::Mat& in_mat){
 
     std::vector<int> indexes_;
     cv::dnn::NMSBoxes(boxes_, confidences_, 0.25, 0.45, indexes_);
+
+
+
     for(size_t i = 0; i < indexes_.size(); i++){
         int index   = indexes_[i];
         int idx     = class_ids_[index];
-        cv::rectangle(in_frame, boxes_[index], cv::Scalar(0, 0, 255), 2, 8);
-        cv::rectangle( in_frame
-                     , cv::Point(boxes_[index].tl().x, boxes_[index].tl().y - 20)
-                     , cv::Point(boxes_[index].br().x, boxes_[index].tl().y)
-                     , cv::Scalar(0, 255, 255), -1
-                     ) ;
-        putText( in_frame
-               , (*_labels)[idx]
-               , cv::Point(boxes_[index].tl().x, boxes_[index].tl().y)
-               , cv::FONT_HERSHEY_PLAIN
-               , 2.0
-               , cv::Scalar(255, 0, 0)
-               , 2
-               , 8
-               ) ;
-    }
 
+        draw_border(in_frame, (*_labels)[idx], boxes_[index]);
+        // cv::rectangle(in_frame, boxes_[index], cv::Scalar(0, 0, 255), 2, 8);
+        // cv::rectangle( in_frame
+        //              , cv::Point(boxes_[index].tl().x, boxes_[index].tl().y)
+        //              , cv::Point(boxes_[index].br().x, boxes_[index].tl().y)
+        //              , cv::Scalar(0, 255, 255), -1
+        //              ) ;
+        // putText( in_frame
+        //        , (*_labels)[idx]
+        //        , cv::Point(boxes_[index].tl().x, boxes_[index].tl().y + 50)
+        //        , cv::FONT_HERSHEY_PLAIN
+        //        , 2.0
+        //        , cv::Scalar(255, 0, 0)
+        //        , 2
+        //        , 8
+        //        ) ;
+    }
+    
     float t = (cv::getTickCount() - start_) / static_cast<float>(cv::getTickFrequency());
     cv::putText(
-         in_frame
-        , cv::format("FPS: %.2f", 1.0 / t)
+          in_frame
+        , cv::format("FPS: %.1f", 1.0 / t)
         , cv::Point(20, 48)
         , cv::FONT_HERSHEY_PLAIN
         , 2.0
@@ -173,13 +178,15 @@ cv::Mat onnxruntime_inference_session::_infer(const cv::Mat& in_mat){
         , 8
         ) ;
 
+    m_boxes = std::move(boxes_);
+    m_class_ids = std::move(class_ids_);
+    m_scores = std::move(confidences_);
+
     delete _session;
 
     qDebug() << "All released";
     return in_frame;
 }
-
-
 
 
 std::optional<std::vector<std::string>> onnxruntime_inference_session::_read_class_names(const std::string& in_class_file){

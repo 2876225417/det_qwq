@@ -16,7 +16,11 @@ struct model_summary {
     QString save_path;
     QDateTime timestamp;
     double map50;
+    double map5095;
+    double precision;
     qint64 params;
+    int layers;
+    int gradients;
 };
 
 class dbConn

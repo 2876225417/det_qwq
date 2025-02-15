@@ -4,6 +4,8 @@
 onnxruntime_inference_session::onnxruntime_inference_session():
       _onnx_model_file("yolov8m.onnx")
     , _class_file("class.txt"){
+        OrtSessionOptionsAppendExecutionProvider_CUDA(_session_options, 0);
+    
 }
 
 onnxruntime_inference_session::~onnxruntime_inference_session(){
@@ -14,7 +16,6 @@ onnxruntime_inference_session::~onnxruntime_inference_session(){
 
 cv::Mat onnxruntime_inference_session::_infer(const cv::Mat& in_mat){
 
-    OrtSessionOptionsAppendExecutionProvider_CUDA(_session_options, 0);
     _session_options.DisableCpuMemArena();
     _session_options.SetIntraOpNumThreads(1);
     _session_options.SetGraphOptimizationLevel(ORT_ENABLE_BASIC);

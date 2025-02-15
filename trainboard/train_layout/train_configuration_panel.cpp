@@ -781,7 +781,7 @@ Train_Configuration_Panel::Train_Configuration_Panel(QWidget* parent)
            , &QLineEdit::textChanged
            , this
            , [this](const QString& alias) {
-                train_cfg_opts->basic_cfg.name = alias;\
+                train_cfg_opts->basic_cfg.name = alias;
                 DEBUG_LOG("Name Alias: " << alias);
             }) ;
     // --exist_ok

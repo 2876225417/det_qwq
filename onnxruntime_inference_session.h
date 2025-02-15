@@ -55,7 +55,15 @@ enum class filling_color {
     light_overlay,
     danger_highlight,
     info_highlight
- };
+};
+
+enum class label_position {
+    top_left = 0,
+    top_right = 1,
+    bottom_left = 2,
+    bottom_right = 3,
+    center = 4
+};
 
 
 
@@ -96,6 +104,10 @@ public:
         }
         return labels;
     }
+    void set_border_color(border_color bc) { m_border_color = bc; }
+    void set_font_type(font_type ft) { m_font_type = ft; }
+    void set_font_color(font_color fc) { m_font_color = fc; }
+    void set_filling_color(filling_color fic) { m_filling_color = fic; }
 
 
 
@@ -109,10 +121,10 @@ private:
     font_color m_font_color = font_color::high_contrast;
     filling_color m_filling_color = filling_color::danger_highlight;
 
-    void set_border_color();
-    void set_font_type();
-    void set_font_color();
-    void set_filling_color();
+
+    cv::Point calc_label_position() {
+
+    }
 
     cv::Scalar get_border_color() {
         static std::map<border_color, cv::Scalar> mapper {

@@ -248,7 +248,7 @@ detectionBoard::detectionBoard(QWidget* parent)
      
     QHBoxLayout* adjust_detection_border_color_wraper = new QHBoxLayout();
     QLabel* detection_border_color_label = new QLabel("border Color");
-    QComboBox* border_color_combobox = new QComboBox();
+    border_color_combobox = new QComboBox();
     border_color_combobox->addItem("red", QVariant::fromValue(border_color::red));
     border_color_combobox->addItem("green", QVariant::fromValue(border_color::green));
     border_color_combobox->addItem("blue", QVariant::fromValue(border_color::blue));
@@ -261,13 +261,13 @@ detectionBoard::detectionBoard(QWidget* parent)
     connect (border_color_combobox
             , QOverload<int>::of(&QComboBox::currentIndexChanged)
             , this, [this](int index) {
-                
-
+                border_color bc = border_color_combobox->itemData(index).value<border_color>();
+                emit _video_infer_thread->update_border_color_request(bc);
             });
 
     QHBoxLayout* adjust_detection_font_type_wraper = new QHBoxLayout();
     QLabel* detection_font_type_label = new QLabel("Font Type");
-    QComboBox* font_type_combobox = new QComboBox();
+    font_type_combobox = new QComboBox();
     font_type_combobox->addItem("simplex", QVariant::fromValue(font_type::simplex));
     font_type_combobox->addItem("plain", QVariant::fromValue(font_type::plain));
     font_type_combobox->addItem("duplex", QVariant::fromValue(font_type::duplex));
@@ -277,9 +277,17 @@ detectionBoard::detectionBoard(QWidget* parent)
     adjust_detection_font_type_wraper->addWidget(detection_font_type_label);
     adjust_detection_font_type_wraper->addWidget(font_type_combobox);
 
+    connect ( font_type_combobox
+            , QOverload<int>::of(&QComboBox::currentIndexChanged)
+            , this
+            , [this](int index) {
+                font_type ft = font_type_combobox->itemData(index).value<font_type>();
+                emit _video_infer_thread->update_font_type_request(ft);
+            });
+    
     QHBoxLayout* adjust_detection_font_color_wraper = new QHBoxLayout();
     QLabel* detection_font_color_label = new QLabel("Font Color");
-    QComboBox* font_color_combobox = new QComboBox();
+    font_color_combobox = new QComboBox();
     font_color_combobox->addItem("high contrast", QVariant::fromValue(font_color::high_contrast));
     font_color_combobox->addItem("pure white", QVariant::fromValue(font_color::pure_white));
     font_color_combobox->addItem("neon green", QVariant::fromValue(font_color::neon_green));
@@ -288,9 +296,17 @@ detectionBoard::detectionBoard(QWidget* parent)
     adjust_detection_font_color_wraper->addWidget(detection_font_color_label);
     adjust_detection_font_color_wraper->addWidget(font_color_combobox);
 
+    connect ( font_color_combobox
+            , QOverload<int>::of(&QComboBox::currentIndexChanged)
+            , this
+            , [this](int index) {
+                font_color fc = font_color_combobox->itemData(index).value<font_color>();
+                emit _video_infer_thread->update_font_color_request(fc);
+            });
+
     QHBoxLayout* select_filling_color_wrapper = new QHBoxLayout();
     QLabel* filling_color_label = new QLabel("Filling Color");
-    QComboBox* filling_color_combobox = new QComboBox();
+    filling_color_combobox = new QComboBox();
     filling_color_combobox->addItem("none", QVariant::fromValue(filling_color::None));
     filling_color_combobox->addItem("dark overlay", QVariant::fromValue(filling_color::dark_overlay));
     filling_color_combobox->addItem("light overlay", QVariant::fromValue(filling_color::light_overlay));
@@ -299,6 +315,33 @@ detectionBoard::detectionBoard(QWidget* parent)
     select_filling_color_wrapper->addWidget(filling_color_label);
     select_filling_color_wrapper->addWidget(filling_color_combobox);
 
+    connect ( filling_color_combobox
+            , QOverload<int>::of(&QComboBox::currentIndexChanged)
+            , this
+            , [this](int index) {
+                filling_color fic = filling_color_combobox->itemData(index).value<filling_color>();
+                emit _video_infer_thread->update_filling_color_request(fic);
+            });
+
+    QHBoxLayout* select_label_position_wrapper = new QHBoxLayout();
+    QLabel* label_positon_label = new QLabel("Label Position");
+    label_position_combobox = new QComboBox();
+    label_position_combobox->addItem("none", QVariant::fromValue(filling_color::None));
+    label_position_combobox->addItem("dark overlay", QVariant::fromValue(filling_color::dark_overlay));
+    label_position_combobox->addItem("light overlay", QVariant::fromValue(filling_color::light_overlay));
+    label_position_combobox->addItem("danger highlight", QVariant::fromValue(filling_color::danger_highlight));
+    label_position_combobox->addItem("info highlight", QVariant::fromValue(filling_color::info_highlight));
+    select_label_position_wrapper->addWidget(label_positon_label);
+    select_label_position_wrapper->addWidget(label_position_combobox);
+
+    connect ( filling_color_combobox
+            , QOverload<int>::of(&QComboBox::currentIndexChanged)
+            , this
+            , [this](int index) {
+                filling_color fic = filling_color_combobox->itemData(index).value<filling_color>();
+                emit _video_infer_thread->update_filling_color_request(fic);
+            });
+    
     display_config_layout_wrapper->addLayout(adjust_detection_border_color_wraper);
     display_config_layout_wrapper->addLayout(adjust_detection_font_type_wraper);
     display_config_layout_wrapper->addLayout(adjust_detection_font_color_wraper);
@@ -429,7 +472,7 @@ detectionBoard::detectionBoard(QWidget* parent)
     sub_layout->addWidget(src_group, 1);
     sub_layout->addWidget(cam_group, 1);
 
-    main_group->setLayout(sub_layout);
+    //main_group->setLayout(sub_layout);
 
 
     _push_button_stop_video->setEnabled(false);
@@ -519,13 +562,13 @@ void detectionBoard::_on_infer_source_clicked(){
 }
 
 void detectionBoard::_on_start_video_clicked(){
-    _cap.open(0);
-    cv::Mat src_from_camera;
-    _cap >> src_from_camera;
-    if(!_cap.isOpened()){
-        std::cerr << "Error: Unable to open video stream.\n";
-        return;
-    }
+    // _cap.open(0);
+    // cv::Mat src_from_camera;
+    // _cap >> src_from_camera;
+    // if(!_cap.isOpened()){
+    //     std::cerr << "Error: Unable to open video stream.\n";
+    //     return;
+    // }
 
 
     // QTimer* timer = new QTimer(this);
@@ -534,13 +577,41 @@ void detectionBoard::_on_start_video_clicked(){
 
     // timer->start(1000);
 
-    _video_infer_thread = new video_infer_thread(&_cap, this);
+    _video_infer_thread = new video_infer_thread(0, this);
 
     connect( _video_infer_thread
            , &video_infer_thread::_frame_processed
            , this
            , &detectionBoard::_show_ifd_camera_result
            );
+
+    connect (_video_infer_thread
+            , &video_infer_thread::update_border_color_request
+            , _video_infer_thread
+            , &video_infer_thread::handle_border_color_change
+            , Qt::QueuedConnection
+            ) ;
+    
+    connect (_video_infer_thread
+            , &video_infer_thread::update_font_type_request
+            , _video_infer_thread
+            , &video_infer_thread::handle_font_type_change
+            , Qt::QueuedConnection
+            ) ;
+
+    connect (_video_infer_thread
+            , &video_infer_thread::update_font_color_request
+            , _video_infer_thread
+            , &video_infer_thread::handle_font_color_change
+            , Qt::QueuedConnection
+            ) ;
+
+    connect (_video_infer_thread
+            , &video_infer_thread::update_filling_color_request
+            , _video_infer_thread
+            , &video_infer_thread::handle_filling_color_change
+            , Qt::QueuedConnection
+            ) ;
 
     connect ( _video_infer_thread
             , &video_infer_thread::result_ready
@@ -579,11 +650,20 @@ void detectionBoard::_on_start_video_clicked(){
 }
 
 void detectionBoard::_on_stop_video_clicked(){
-    _cap.release();
-    _video_timer->stop();
+    // _cap.release();
+    // _video_timer->stop();
 
+    if (_video_infer_thread) {
+        _video_infer_thread->stop();
+        _video_infer_thread->quit();
+        _video_infer_thread->wait();
+
+        delete _video_infer_thread;
+        _video_infer_thread = nullptr;
+    }
     _push_button_start_video->setEnabled(true);
     _push_button_stop_video->setEnabled(false);
+    // diasable corresponding buttons when stop
 }
 
 void detectionBoard::_show_infer_result(const cv::Mat& infer_result_image){

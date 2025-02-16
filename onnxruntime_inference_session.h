@@ -104,26 +104,49 @@ public:
         }
         return labels;
     }
+    // draw config
     void set_border_color(border_color bc) { m_border_color = bc; }
     void set_font_type(font_type ft) { m_font_type = ft; }
     void set_font_color(font_color fc) { m_font_color = fc; }
     void set_filling_color(filling_color fic) { m_filling_color = fic; }
+    void set_label_position(label_position lp) { m_label_position = lp; }
 
-
+    // detect config
+    void set_score_threshold(float threshold) {  m_score_threshold  = threshold; }
+    void set_nms_1st_threshold(float nms_1st) { m_nms_1st = nms_1st; }
 
 private:
     Ort::Env*                                _env = new Ort::Env(ORT_LOGGING_LEVEL_ERROR, "yolov8-onnx");
     Ort::SessionOptions                     _session_options;
 
     // draw config
-    border_color m_border_color = border_color::black;
-    font_type m_font_type = font_type::complex;
-    font_color m_font_color = font_color::high_contrast;
-    filling_color m_filling_color = filling_color::danger_highlight;
+    border_color            m_border_color = border_color::black;
+    font_type               m_font_type = font_type::complex;
+    font_color              m_font_color = font_color::high_contrast;
+    filling_color           m_filling_color = filling_color::danger_highlight;
+    label_position          m_label_position = label_position::top_left;
 
+    // detection config
+    bool                    m_enable_cuda = true;
+    float                   m_score_threshold = 0.3f;
+    float                   m_nms_1st = 0.3f;
+    float                   m_nms_2nd = 0.3f;
+    int                     m_intra_op_num = 8;
+    bool                    m_graph_optimization = false;
+    std::string             _class_file;
 
-    cv::Point calc_label_position() {
+    
 
+    cv::Point calc_label_position(cv::Size frame_size, int margin = 20) {
+        qDebug() << "lable_position: " << static_cast<int>(m_label_position);
+        switch (m_label_position) {
+            case label_position::top_left:      return cv::Point{margin, margin};
+            case label_position::top_right:     return cv::Point{ frame_size.width - margin, margin};
+            case label_position::bottom_left:   return cv::Point{margin, frame_size.height - margin};
+            case label_position::bottom_right:  return cv::Point{frame_size.width - margin, frame_size.height - margin};
+            case label_position::center:        return cv::Point{frame_size.width / 2, frame_size.height / 2};
+            default:                            return cv::Point{frame_size.width / 2, frame_size.height / 2};
+        }
     }
 
     cv::Scalar get_border_color() {
@@ -182,7 +205,7 @@ private:
                      ) ;
         
         cv::putText( frame, label
-                   , cv::Point{point.tl().x, point.tl().y}
+                   , calc_label_position(frame.size())
                    , get_font_type(), 2.0
                    , get_border_color(), 2, 8
                    ) ;
@@ -203,7 +226,6 @@ private:
 
 
     std::string                             _onnx_model_file;
-    std::string                             _class_file;
     std::vector<std::string>                _input_node_names;
     std::vector<std::string>                _output_node_names;
 };

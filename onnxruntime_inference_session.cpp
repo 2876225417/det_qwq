@@ -1,4 +1,5 @@
 #include "onnxruntime_inference_session.h"
+#include "opencv2/opencv.hpp"
 #include <QDebug>
 
 onnxruntime_inference_session::onnxruntime_inference_session():
@@ -32,7 +33,8 @@ cv::Mat onnxruntime_inference_session::_infer(const cv::Mat& in_mat){
 
     _num_input_nodes    = _session->GetInputCount();
     _num_output_nodes   = _session->GetOutputCount();
-    _labels = _read_class_names("class.txt");
+    // _labels = _read_class_names("class.txt");
+    _labels = _read_class_names(_class_file);
 
     std::cout << "onnxruntime inference try to use GPU Device\n";
     _input_node_names.reserve(_num_input_nodes);
@@ -120,7 +122,7 @@ cv::Mat onnxruntime_inference_session::_infer(const cv::Mat& in_mat){
         double      score_;
         cv::minMaxLoc(classes_scores_, 0, &score_, 0, &class_id_point_);
 
-        if(score_ > 0.25){
+        if(score_ > m_score_threshold){
             float       cx_         = det_output_.at<float>(i, 0);
             float       cy_         = det_output_.at<float>(i, 1);
             float       ow_         = det_output_.at<float>(i, 2);
@@ -141,9 +143,7 @@ cv::Mat onnxruntime_inference_session::_infer(const cv::Mat& in_mat){
     }
 
     std::vector<int> indexes_;
-    cv::dnn::NMSBoxes(boxes_, confidences_, 0.25, 0.45, indexes_);
-
-
+    cv::dnn::NMSBoxes(boxes_, confidences_, m_score_threshold, 0.45, indexes_);
 
     for(size_t i = 0; i < indexes_.size(); i++){
         int index   = indexes_[i];

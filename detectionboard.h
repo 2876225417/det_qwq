@@ -34,6 +34,8 @@
 #include <QComboBox>
 class video_infer_thread;
 
+
+
 class detectionBoard: public QWidget
 {
     Q_OBJECT
@@ -144,11 +146,17 @@ signals:
     void _frame_processed(const cv::Mat& result);
     void result_ready(const detection_result& res);
     void setup_labels(const QStringList& labels);
+    // draw config
     void update_border_color_request(border_color);
     void update_font_type_request(font_type);
     void update_font_color_request(font_color);
     void update_filling_color_request(filling_color);
+    void update_label_position_request(label_position);
+    // detection config
+    void update_score_threshold_request(float);
+    void update_nms_1st_request(float);
 public slots:
+    // draw config
     void handle_border_color_change(border_color bc) {
         QMutexLocker locker(&m_mutex);
         inference_session.set_border_color(bc);
@@ -164,6 +172,19 @@ public slots:
     void handle_filling_color_change(filling_color fic) {
         QMutexLocker locker(&m_mutex);
         inference_session.set_filling_color(fic);
+    }
+    void handle_label_position_change(label_position lp) {
+        QMutexLocker locker(&m_mutex);
+        inference_session.set_label_position(lp);
+    }
+    // detection config
+    void handle_score_threshold_change(float threhsold) {
+        QMutexLocker locker(&m_mutex);
+        inference_session.set_score_threshold(threhsold);
+    }
+    void handle_nms_1st_threshold_change(float nms_1st) {
+        QMutexLocker locker(&m_mutex);
+        inference_session.set_nms_1st_threshold(nms_1st);
     }
 private:
     // cv::VideoCapture* cap_;

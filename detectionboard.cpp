@@ -24,6 +24,11 @@
 #include <qsqlquery.h>
 #include <qtablewidget.h>
 #include <qvariant.h>
+
+
+QComboBox* workers_combobox_with_concurrency(QWidget* parent = nullptr);
+
+
 detectionBoard::detectionBoard(QWidget* parent)
     : QWidget(parent)
     , _label(new QLabel())
@@ -177,6 +182,10 @@ detectionBoard::detectionBoard(QWidget* parent)
     QHBoxLayout* select_detection_type_layout = new QHBoxLayout();
     QLabel* detection_type_label = new QLabel("Det Type");
     QComboBox* detection_type_combobox = new QComboBox();
+    detection_type_combobox->addItem("Detect");
+    detection_type_combobox->addItem("Segment");
+    detection_type_combobox->addItem("Classify");
+    detection_type_combobox->addItem("Pose");
     select_detection_type_layout->addWidget(detection_type_label);
     select_detection_type_layout->addWidget(detection_type_combobox);
     
@@ -189,19 +198,44 @@ detectionBoard::detectionBoard(QWidget* parent)
     QHBoxLayout* adjust_score_threshold_layout = new QHBoxLayout();
     QLabel* score_threshold_label = new QLabel("Threshold");
     QSpinBox* score_threshold_adjuster = new QSpinBox();
+    score_threshold_adjuster->setRange(1, 100);
+    score_threshold_adjuster->setValue(10);
+    score_threshold_adjuster->setSingleStep(5);
     adjust_score_threshold_layout->addWidget(score_threshold_label);
     adjust_score_threshold_layout->addWidget(score_threshold_adjuster);
+
+    connect ( score_threshold_adjuster
+            , QOverload<int>::of(&QSpinBox::valueChanged)
+            , this
+            , [this](int value) {
+                float score_threshold =  value / 100.f;
+                emit _video_infer_thread->update_score_threshold_request(score_threshold);
+            });
 
     QHBoxLayout* adjust_nms_layout = new QHBoxLayout();
     QHBoxLayout* adjust_nms_1st_layout = new QHBoxLayout();
     QLabel* adjust_nms_1st_label = new QLabel("NMS_1");
     QSpinBox* nms_1st_adjuster = new QSpinBox();
+    nms_1st_adjuster->setRange(0, 100);
+    nms_1st_adjuster->setValue(50);
+    nms_1st_adjuster->setSingleStep(5);
     adjust_nms_1st_layout->addWidget(adjust_nms_1st_label);
     adjust_nms_1st_layout->addWidget(nms_1st_adjuster);
+
+    connect ( nms_1st_adjuster
+            , QOverload<int>::of(&QSpinBox::valueChanged)
+            , this
+            , [this](int value) {
+                float nms_1st = value / 100.f;
+                emit _video_infer_thread->update_nms_1st_request(nms_1st);
+            });
 
     QHBoxLayout* adjust_nms_2nd_layout = new QHBoxLayout();
     QLabel* adjust_nms_2nd_label = new QLabel("NMS_2");
     QSpinBox* nms_2nd_adjuster = new QSpinBox();
+    nms_2nd_adjuster->setRange(0, 100);
+    nms_2nd_adjuster->setValue(50);
+    nms_2nd_adjuster->setSingleStep(5);
     adjust_nms_2nd_layout->addWidget(adjust_nms_2nd_label);
     adjust_nms_2nd_layout->addWidget(nms_2nd_adjuster);
 
@@ -216,7 +250,7 @@ detectionBoard::detectionBoard(QWidget* parent)
     
     QHBoxLayout* set_intra_op_num_threads_layout = new QHBoxLayout();
     QLabel* intra_op_num_label = new QLabel("Intra Op");
-    QComboBox* intra_op_num_threads_adjuster = new QComboBox();
+    QComboBox* intra_op_num_threads_adjuster = workers_combobox_with_concurrency();
     set_intra_op_num_threads_layout->addWidget(intra_op_num_label);
     set_intra_op_num_threads_layout->addWidget(intra_op_num_threads_adjuster);
 
@@ -228,9 +262,13 @@ detectionBoard::detectionBoard(QWidget* parent)
     
     QHBoxLayout* set_graph_optimization_level_layout = new QHBoxLayout();
     QLabel* graph_optimization_level_label = new QLabel("Graph Optimization");
-    QComboBox* select_graph_optimization_level = new QComboBox();
+    QComboBox* select_graph_optimization_level_combobox = new QComboBox();
+    select_graph_optimization_level_combobox->addItem("Disable All");
+    select_graph_optimization_level_combobox->addItem("Enable Basic");
+    select_graph_optimization_level_combobox->addItem("Enable Extended");
+    select_graph_optimization_level_combobox->addItem("Enable All");
     set_graph_optimization_level_layout->addWidget(graph_optimization_level_label);
-    set_graph_optimization_level_layout->addWidget(select_graph_optimization_level);
+    set_graph_optimization_level_layout->addWidget(select_graph_optimization_level_combobox);
 
     detection_config_layout_wrapper->addLayout(select_detection_type_layout);
     detection_config_layout_wrapper->addLayout(enable_cuda_check_layout);
@@ -326,26 +364,27 @@ detectionBoard::detectionBoard(QWidget* parent)
     QHBoxLayout* select_label_position_wrapper = new QHBoxLayout();
     QLabel* label_positon_label = new QLabel("Label Position");
     label_position_combobox = new QComboBox();
-    label_position_combobox->addItem("none", QVariant::fromValue(filling_color::None));
-    label_position_combobox->addItem("dark overlay", QVariant::fromValue(filling_color::dark_overlay));
-    label_position_combobox->addItem("light overlay", QVariant::fromValue(filling_color::light_overlay));
-    label_position_combobox->addItem("danger highlight", QVariant::fromValue(filling_color::danger_highlight));
-    label_position_combobox->addItem("info highlight", QVariant::fromValue(filling_color::info_highlight));
+    label_position_combobox->addItem("Top Left", QVariant::fromValue(label_position::top_left));
+    label_position_combobox->addItem("Top right", QVariant::fromValue(label_position::top_right));
+    label_position_combobox->addItem("Bottom Left", QVariant::fromValue(label_position::bottom_left));
+    label_position_combobox->addItem("Bottom Right", QVariant::fromValue(label_position::bottom_right));
+    label_position_combobox->addItem("Center", QVariant::fromValue(label_position::center));
     select_label_position_wrapper->addWidget(label_positon_label);
     select_label_position_wrapper->addWidget(label_position_combobox);
 
-    connect ( filling_color_combobox
+    connect ( label_position_combobox
             , QOverload<int>::of(&QComboBox::currentIndexChanged)
             , this
             , [this](int index) {
-                filling_color fic = filling_color_combobox->itemData(index).value<filling_color>();
-                emit _video_infer_thread->update_filling_color_request(fic);
+                label_position lp = label_position_combobox->itemData(index).value<label_position>();
+                emit _video_infer_thread->update_label_position_request(lp);
             });
     
     display_config_layout_wrapper->addLayout(adjust_detection_border_color_wraper);
     display_config_layout_wrapper->addLayout(adjust_detection_font_type_wraper);
     display_config_layout_wrapper->addLayout(adjust_detection_font_color_wraper);
     display_config_layout_wrapper->addLayout(select_filling_color_wrapper);
+    display_config_layout_wrapper->addLayout(select_label_position_wrapper);
     
     display_config_layout->setLayout(display_config_layout_wrapper);
 
@@ -612,6 +651,22 @@ void detectionBoard::_on_start_video_clicked(){
             , &video_infer_thread::handle_filling_color_change
             , Qt::QueuedConnection
             ) ;
+    connect ( _video_infer_thread
+            , &video_infer_thread::update_label_position_request
+            , _video_infer_thread
+            , &video_infer_thread::handle_label_position_change
+            ) ;
+    
+    connect ( _video_infer_thread
+            , &video_infer_thread::update_score_threshold_request
+            , _video_infer_thread
+            , &video_infer_thread::handle_score_threshold_change
+            ) ;
+
+    connect ( _video_infer_thread
+            , &video_infer_thread::update_nms_1st_request
+            , _video_infer_thread
+            , &video_infer_thread::handle_nms_1st_threshold_change);
 
     connect ( _video_infer_thread
             , &video_infer_thread::result_ready
@@ -708,7 +763,7 @@ void detectionBoard::_show_image(const cv::Mat& mat, QLabel* label){
 
     QPixmap tmp = QPixmap::fromImage(*img);
 
-    QPixmap scaled_pixmap = tmp.scaled(tmp.width() 
+    QPixmap scaled_pixmap = tmp.scaled( tmp.width() 
                                       , tmp.height() 
                                       , Qt::KeepAspectRatio
                                       , Qt::SmoothTransformation

@@ -55,7 +55,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     connect(sidebar, &Sidebar::itemClicked, this, &MainWindow::onSidebarItemClicked);
 
-    setWindowTitle("Main window");
+    setWindowTitle("基于Qt的物体检测平台");
     this->resize(1544, 1009);
 
     customStatusBar = new CustomStatusBar(this);
